@@ -24,19 +24,33 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                 'kickDown'
             ];
 
-        beforeEach(function(done) {
+        var events = [];
 
+        beforeEach(function(done) {
+            
+            events = [];
+            
             obj = {
                     walkThrough: function() {},
                     lock: function() {},
                     unlock: function() {},
                     openDoor: function() { console.log('openDoor'); },
-                    closeDoor: function() { return 42; },
+                    closeDoor: function() {;
+                        return delay(50, 42);
+                    },
                     kickDown: function() {}
             };
 
             states = {
                 open: {
+                        enter: function(transition) {
+                            events.push('enter:open');
+                            return delay(50);
+                        },
+                        exit: function(transition) {
+                            events.push('exit:open');
+                            return delay(50);
+                        },
                         allowedMethods: [
                            'walkThrough', 'closeDoor'
                         ],
@@ -44,8 +58,11 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                             'shut'
                         ]
                     },
-
                 shut: {
+                        enter: function(transition) {
+                            events.push('enter:shut');
+                            return delay(50);
+                        },
                         allowedMethods: [
                             'lock', 'openDoor'
                         ],
@@ -120,16 +137,31 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                     isAPromise(transitionPromise);
                 });
                 it('correctly changes the state of the FSM after a successful transition', function(done) {
+                    sinon.spy(states.open, 'enter');
+                    sinon.spy(states.open, 'exit');
+                    sinon.spy(states.shut, 'enter');
+                    
                     stateMachine.transition('open').done(function() {
                         stateMachine.getState().should.equal('open');
-                        done();
+                        states.open.enter.should.have.been.calledOnce;
+                        events.should.eql(['enter:open']);
+                        stateMachine.transition('shut').done(function() {
+                            stateMachine.getState().should.equal('shut');
+                            states.open.exit.should.have.been.calledOnce;
+                            states.shut.enter.should.have.been.calledOnce;
+                            events.should.eql(['enter:open', 'exit:open', 'enter:shut']);
+                            done();
+                        });
                     });
                 });
                 it('does not change the state of the FSM after a failed transition to a disallowed state', function(done) {
-                    stateMachine.transition('open');
-                    stateMachine.transition('locked').fail(function() {
-                        stateMachine.getState().should.equal('open');
-                        done();
+                    stateMachine.transition('open').always(function() {
+                        events.should.eql(['enter:open']);
+                        stateMachine.transition('locked').fail(function() {
+                            stateMachine.getState().should.equal('open');
+                            events.should.eql(['enter:open']);
+                            done();
+                        });
                     });
                 });
                 it('does not change the state of the FSM after a failed transition', function(done) {
@@ -182,6 +214,14 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             });
         });
     });
+
+    function delay(ms, value) {
+        var dfd = $.Deferred();
+        setTimeout(function() {
+            dfd.resolve(value);
+        }, ms || 100);
+        return dfd.promise();
+    }
 
     function isAPromise(promise) {
         var testFor, testAgainst;

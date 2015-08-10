@@ -1,6 +1,7 @@
 .idea
 .DS_Store
 desktop.ini
+app/vendor
 *node_modules*
 *npm-debug*
 build

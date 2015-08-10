@@ -49,7 +49,7 @@ define(['jquery'], function($) {
                 allowedMethods = states[_currentState].allowedMethods;
 
                 if (allowedMethods && _.contains(allowedMethods, methodName)) {
-                    deferred.resolve(method.apply(obj, args));
+                    whenDeferred(deferred, method.apply(obj, args));
                 } else {
                     deferred.reject(Factory.METHOD_NOT_ALLOWED);
                 }
@@ -72,9 +72,32 @@ define(['jquery'], function($) {
             if (transitionAllowed(newState)) {
                 oldState = _currentState;
                 _currentState = newState;
-                deferred.resolve({
+                
+                var info = {
                     oldState: oldState,
                     newState: newState
+                };
+                
+                var exitFn = function() {};
+                if (oldState && states[oldState]
+                    && _.isFunction(states[oldState].exit)) {
+                    exitFn = states[oldState].exit;
+                }
+                
+                var enterFn = function() {};
+                if (newState && states[newState]
+                    && _.isFunction(states[newState].enter)) {
+                    enterFn = states[newState].enter;
+                }
+                
+                $.when(exitFn.call(obj, info)).done(function() {
+                    $.when(enterFn.call(obj, info)).done(function() {
+                        deferred.resolve(info);
+                    }).fail(function(err) {
+                        deferred.reject(err || Factory.TRANSITION_NOT_ALLOWED);
+                    });
+                }).fail(function(err) {
+                    deferred.reject(err || Factory.TRANSITION_NOT_ALLOWED);
                 });
             } else {
                 deferred.reject(Factory.TRANSITION_NOT_ALLOWED);
@@ -93,15 +116,23 @@ define(['jquery'], function($) {
             }
             return allowed;
         }
+        
+        function whenDeferred(deferred, fn1, fn2) {
+            var args = Array.prototype.slice.call(arguments);
+            return $.when.apply($, args.slice(1)).then(function() {
+                return deferred.resolve.apply(deferred, arguments);
+            }, function() {
+                return deferred.reject.apply(deferred, arguments);
+            });
+        }
 
         // A helper method that creates a new deferred, returns its promise and calls the method with the deferred
         function deferIt(method) {
             return function() {
                 var args = Array.prototype.slice.call(arguments),
                     $deferred = $.Deferred();
-
                 args.unshift($deferred);
-                method.apply(this,args);
+                method.apply(this, args);
                 return $deferred.promise();
             };
         }
