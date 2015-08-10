@@ -132,6 +132,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
         it('should return a proxy object (optionally)', function(done) {            
             var player = new Player();
             var fsmEvents = [];
+            var failed;
             
             var fsm = new FSMFactory(player, {
                 'playing': {
@@ -140,7 +141,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                     transitions: ['paused', 'stopped'],
                     data: { title: 'Playing' }
                 },
-                'paused':{
+                'paused': {
                     trigger: 'pause',
                     methods: ['play', 'stop'],
                     transitions: ['playing', 'stopped'],
@@ -148,7 +149,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                         return { title: 'Paused' };
                     }
                 },
-                'stopped':{
+                'stopped': {
                     initial: true,
                     trigger: 'stop',
                     methods: ['play'],
@@ -178,6 +179,10 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             
             fsm.onTransition(onTransitionFn(1));
             fsm.onTransition(onTransitionFn(2));
+            
+            fsm.onFailure(function(fsm, info) {
+                failed = info.from + ':' + info.to;
+            });
             
             var expected = [
                 'm:play:1', 'm:play:2',
@@ -211,7 +216,14 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                     'playing:paused', 'exec:pause',
                     'paused:stopped', 'exec:stop'
                 ]);
-            }).then(done);
+            }).then(function() {
+                fsm.onTransition(rejectTransition);
+                return fsm.transition('playing');
+            }).always(function() {
+                fsm.getState().should.equal('stopped');
+                failed.should.equal('stopped:playing');
+                done();
+            });
         });
 
         describe('returns an FSM. The Deferred State Machine', function() {
@@ -338,6 +350,10 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             events.push('t:' + info.from + ':' + info.to + ':' + id);
             return delay(50);
         };
+    };
+    
+    function rejectTransition(fsm, transition) {
+        return $.Deferred().reject().promise();
     };
 
     function isAPromise(promise) {

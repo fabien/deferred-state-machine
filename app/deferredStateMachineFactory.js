@@ -31,6 +31,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             getStateData: getStateData,
             onMethod: onMethod,
             onTransition: onTransition,
+            onFailure: onFailure,
             transition: setState,
             transitionAllowed: transitionAllowed
         };
@@ -40,6 +41,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         var _onExit = {};
         var _onMethod = [];
         var _onTransition = [];
+        var _onFailure = [];
         var _stateNames = _.keys(states || {});
         var _allMethodNames = getMethods(obj);
         var _triggers = {}; // map methodName to stateName
@@ -165,9 +167,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             var self = this;
             
             if (transitionAllowed(newState)) {
-                
                 previousState = _currentState;
-                _currentState = newState;
                 
                 var info = { from: previousState, to: newState };
                 info.transitions = this.getStateTransitions();
@@ -179,14 +179,18 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 var onEnter = _onEnter[newState] || [];
                 var onExit = previousState ? _onExit[previousState] : [];
                 
-                runSeries(_onTransition, this, info).done(function() {
+                runSeries(_onTransition, self, info).done(function() {
                     return runSeries(onExit, info).done(function() {
                         return runSeries(onEnter, info).done(function() {
+                            _currentState = newState;
                             deferred.resolve(info);
                         });
                     });
                 }).fail(function(err) {
-                    deferred.reject(err || transitionNotAllowed(newState));
+                    _currentState = previousState;
+                    return runSeries(_onFailure, self, info).always(function() {
+                        deferred.reject(err || transitionNotAllowed(newState));
+                    });
                 });
             } else {
                 deferred.reject(transitionNotAllowed(newState));
@@ -195,6 +199,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         
         function onTransition(callback) {
             if (_.isFunction(callback)) _onTransition.push(callback);
+        }
+        
+        function onFailure(callback) {
+            if (_.isFunction(callback)) _onFailure.push(callback);
         }
 
         function transitionAllowed(newState) {
