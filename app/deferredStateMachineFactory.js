@@ -23,6 +23,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             initialState: initialState,
             getState: getState,
             getStates: getStates,
+            getStateMethods: getStateMethods,
             onMethod: onMethod,
             onTransition: onTransition,
             transition: deferIt(transition),
@@ -115,6 +116,15 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
 
         function getStates() {
             return _stateNames;
+        }
+        
+        function getStateMethods() {
+            if (_currentState && states[_currentState]
+                && _.isArray(states[_currentState].methods)) {
+                return states[_currentState].methods;
+            } else {
+                return getMethods(obj);
+            }
         }
         
         function transition(deferred, newState) {

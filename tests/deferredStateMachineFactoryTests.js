@@ -180,10 +180,13 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             
             fsm.play().then(function() {
                 fsm.getState().should.equal('playing');
+                fsm.getStateMethods().should.eql(['pause', 'stop']);
             }).then(fsm.pause).then(function() {
                 fsm.getState().should.equal('paused');
+                fsm.getStateMethods().should.eql(['play', 'stop']);
             }).then(fsm.stop).then(function() {
                 fsm.getState().should.equal('stopped');
+                fsm.getStateMethods().should.eql(['play']);
             }).then(function() {
                 events.should.eql(expected);
             }).then(function() {
