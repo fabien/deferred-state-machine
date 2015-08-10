@@ -162,11 +162,12 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             }
         }
         
-        function transition(deferred, newState, skipFail) {
+        function transition(deferred, newState, force) {
             var previousState;
             var self = this;
             
-            if (transitionAllowed(newState)) {
+            if (transitionAllowed(newState) 
+                || (force && newState !== _currentState)) {
                 previousState = _currentState;
                 _currentState = newState;
                 
@@ -188,7 +189,6 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                     });
                 }).fail(function(err) {
                     var callbacks = [resetTransition].concat(_onFailure || []);
-                    if (skipFail) callbacks = []; 
                     return runSeries(callbacks, self, info).always(function() {
                         deferred.reject(err || transitionNotAllowed(newState));
                     });
@@ -314,6 +314,5 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             return new Error('Method "' + name + '" not allowed.');
         };
         
-
     };
 });
