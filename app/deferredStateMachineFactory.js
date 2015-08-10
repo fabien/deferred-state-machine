@@ -74,7 +74,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                     transitionName = _triggers[methodName];
 
                 if (!_currentState) {
-                    deferred.reject(methodNotAllowed());
+                    deferred.reject(methodNotAllowed(methodName));
                     return;
                 }
 
@@ -96,10 +96,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                     runSeries.apply(null, [callbacks, subject, methodName].concat(args)).done(function() {
                         whenDeferred(deferred, method.apply(obj, args));
                     }).fail(function(err) {
-                        deferred.reject(err || methodNotAllowed());
+                        deferred.reject(err || methodNotAllowed(methodName));
                     })
                 } else {
-                    deferred.reject(methodNotAllowed());
+                    deferred.reject(methodNotAllowed(methodName));
                 }
             }.bind(obj));
         });
@@ -171,10 +171,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                         });
                     });
                 }).fail(function(err) {
-                    deferred.reject(err || transitionNotAllowed());
+                    deferred.reject(err || transitionNotAllowed(newState));
                 });
             } else {
-                deferred.reject(transitionNotAllowed());
+                deferred.reject(transitionNotAllowed(newState));
             }
         }
         
@@ -278,12 +278,12 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         }
         
         // Errors
-        function transitionNotAllowed() {
-            return new Error('transition not allowed');
+        function transitionNotAllowed(name) {
+            return new Error('Transition "' + name + '" not allowed.');
         };
         
-        function methodNotAllowed() {
-            return new Error('method not allowed');
+        function methodNotAllowed(name) {
+            return new Error('Method "' + name + '" not allowed.');
         };
         
 
