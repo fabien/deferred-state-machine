@@ -64,6 +64,8 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             var method = obj[methodName];
             if (Function !== method.constructor) {
                 return;
+            } else if (methodName === 'trigger') {
+                return; // prevent
             }
 
             subject[methodName] = deferIt(function(deferred) {
