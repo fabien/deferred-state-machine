@@ -43,7 +43,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         var _onTransition = [];
         var _onFailure = [];
         var _stateNames = _.keys(states || {});
-        var _allMethodNames = getMethods(obj);
+        var _allMethodNames = [];
         var _triggers = {}; // map methodName to stateName
         
         _.each(_stateNames, function(name) {
@@ -52,6 +52,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             }
             _onEnter[name] = getCallbacks(obj, name, 'enter');
             _onExit[name] = getCallbacks(obj, name, 'exit');
+            if (states[name] && _.isArray(states[name].methods)) {
+                _allMethodNames = _allMethodNames.concat(states[name].methods);
+            }
+            
         });
         
         var _initialState = _.find(_stateNames, function(name) {
@@ -63,11 +67,11 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         // Alternatively, specify a proxy object as a receiver
         var subject = proxy ? new StateMachineProxy(obj) : obj;
         
-        _.forEach(_allMethodNames, function(methodName) {
+        _.forEach(_.uniq(_allMethodNames), function(methodName) {
             var method = obj[methodName];
             if (Function !== method.constructor) {
                 return;
-            } else if (methodName === 'trigger') {
+            } else if (proxy && _.isFunction(proxy[methodName])) {
                 return; // prevent
             }
 
