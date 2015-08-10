@@ -1,5 +1,5 @@
-define(['jquery', 'underscore'], function($, _) {
-
+define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
+    
     /**
      * A finite state machine that works with deferreds.
      * FSMs are created using the factory method that this module returns.
@@ -13,6 +13,8 @@ define(['jquery', 'underscore'], function($, _) {
     function StateMachineProxy(context) {
         this.context = context;
     };
+    
+    _.extend(StateMachineProxy.prototype, Backbone.Events);
     
     return function(obj, states, proxy) {
         var Factory = this;
@@ -52,7 +54,7 @@ define(['jquery', 'underscore'], function($, _) {
         
         // Alternatively, specify a proxy object as a receiver
         var subject = proxy ? new StateMachineProxy(obj) : obj;
-
+        
         _.forEach(_allMethodNames, function(methodName) {
             var method = obj[methodName];
             if (Function !== method.constructor) {
@@ -72,6 +74,8 @@ define(['jquery', 'underscore'], function($, _) {
                 args.shift();
 
                 methods = states[_currentState].methods;
+                
+                triggerEvents(deferred, 'exec', subject, methodName);
 
                 if (_.isEmpty(methods) // allow when no explicit allowed methods
                     || (_.isArray(methods) && _.contains(methods, methodName))) {
@@ -95,6 +99,10 @@ define(['jquery', 'underscore'], function($, _) {
         
         $.extend(subject, factoryMethods);
         
+        if (_.isFunction(subject.on) && _.isFunction(subject.listenTo)) {
+            subject.on('transition', subject.transition, subject);
+        }
+        
         return subject;
         
         function initialState() {
@@ -108,15 +116,18 @@ define(['jquery', 'underscore'], function($, _) {
         function getStates() {
             return _stateNames;
         }
-
+        
         function transition(deferred, newState) {
             var previousState;
-
+            var self = this;
+            
+            var info = { from: _currentState, to: newState };
+            
+            triggerEvents(deferred, 'transition', this, info);
+            
             if (transitionAllowed(newState)) {
                 previousState = _currentState;
                 _currentState = newState;
-                
-                var info = { from: previousState, to: newState };
                 
                 var onEnter = _onEnter[newState] || [];
                 var onExit = previousState ? _onExit[previousState] : [];
@@ -145,6 +156,8 @@ define(['jquery', 'underscore'], function($, _) {
 
             if (!_currentState) {
                 allowed = _.contains(_stateNames, newState);
+            } else if (_currentState === newState) {
+                allowed = false;
             } else {
                 transitions = states[_currentState].transitions;
                 allowed = transitions && _.contains(transitions, newState);
@@ -174,6 +187,18 @@ define(['jquery', 'underscore'], function($, _) {
                 method.apply(this, args);
                 return $deferred.promise();
             };
+        }
+        
+        function triggerEvents(deferred, type, context) {
+            if (context && _.isFunction(context.trigger)) {
+                var args = _.rest(arguments, 3);
+                deferred.done(function() {
+                    context.trigger.apply(context, [type + ':done'].concat(args));
+                });
+                deferred.fail(function() {
+                    context.trigger.apply(context, [type + ':fail'].concat(args));
+                });
+            }
         }
         
         function getMethods(obj) {

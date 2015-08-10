@@ -126,6 +126,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
         
         it('should return a proxy object (optionally)', function(done) {            
             var player = new Player();
+            var fsmEvents = [];
             
             var fsm = new FSMFactory(player, {
                 'playing': {
@@ -145,6 +146,14 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                     transitions: ['playing']
                 }
             }, true); // return proxy
+            
+            fsm.on('all', function(eventName, arg) {
+                if (eventName === 'exec:done') {
+                    fsmEvents.push('exec:' + arg);
+                } else if (eventName === 'transition:done') {
+                    fsmEvents.push(arg.from + ':' + arg.to);
+                }
+            });
             
             fsm.should.not.equal(player);
             fsm.context.should.equal(player);
@@ -177,6 +186,12 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                 fsm.getState().should.equal('stopped');
             }).then(function() {
                 events.should.eql(expected);
+            }).then(function() {
+                fsmEvents.should.eql([
+                    'stopped:playing', 'exec:play',
+                    'playing:paused', 'exec:pause',
+                    'paused:stopped', 'exec:stop'
+                ]);
             }).then(done);
         });
 

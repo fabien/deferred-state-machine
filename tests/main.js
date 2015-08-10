@@ -12,6 +12,7 @@ require.config({
     paths : {
         jquery : '../app/vendor/jquery/jquery',
         underscore : '../app/vendor/underscore/underscore',
+        backbone : '../app/vendor/backbone/backbone',
         mocha : '../app/vendor/mocha/mocha',
         chai : '../app/vendor/chai/chai',
         squire : '../app/vendor/squire/src/Squire',
