@@ -9,24 +9,45 @@ define(['jquery', 'underscore'], function($, _) {
      *
 
      */
-    return function(obj, states) {
-         var Factory = this,
-            methods = {
-                getState: getState,
-                getStates: getStates,
-                transition: deferIt(transition),
-                transitionAllowed: transitionAllowed
-            },
+    
+    function StateMachineProxy(context) {
+        this.context = context;
+    };
+    
+    return function(obj, states, proxy) {
+        var Factory = this;
+        
+        var factoryMethods = {
+            initialState: initialState,
+            getState: getState,
+            getStates: getStates,
+            onMethod: onMethod,
+            onTransition: onTransition,
+            transition: deferIt(transition),
+            transitionAllowed: transitionAllowed
+        };
 
-            // Private variables
-            _currentState,
-            _stateNames = _.keys(states),
-            _allMethodNames = _.keys(obj);
-
-        // Constants
-        Factory.TRANSITION_NOT_ALLOWED = 'transition not allowed';
-        Factory.METHOD_NOT_ALLOWED = 'method not allowed';
-
+        // Private variables
+        var _onMethod = [];
+        var _onTransition = [];
+        var _stateNames = _.keys(states || {});
+        var _allMethodNames = getMethods(obj);
+        var _triggers = {}; // map methodName to stateName
+        
+        _.each(_stateNames, function(name) {
+            if (states[name] && _.isString(states[name].trigger)) {
+                _triggers[states[name].trigger] = name;
+            }
+        });
+        
+        var _initialState = _.find(_stateNames, function(name) {
+            return states[name] && states[name].initial;
+        });
+        
+        var _currentState = _initialState;
+        
+        // Alternatively, specify a proxy object as a receiver
+        var subject = proxy ? new StateMachineProxy(obj) : obj;
 
         _.forEach(_allMethodNames, function(methodName) {
             var method = obj[methodName];
@@ -34,28 +55,47 @@ define(['jquery', 'underscore'], function($, _) {
                 return;
             }
 
-            obj[methodName] = deferIt(function(deferred) {
-                var allowedMethods,
-                    args = Array.prototype.slice.call(arguments);
+            subject[methodName] = deferIt(function(deferred) {
+                var methods,
+                    args = Array.prototype.slice.call(arguments),
+                    transitionName = _triggers[methodName];
 
                 if (!_currentState) {
-                    deferred.reject(Factory.METHOD_NOT_ALLOWED);
+                    deferred.reject(methodNotAllowed());
                     return;
                 }
 
                 args.shift();
 
-                allowedMethods = states[_currentState].allowedMethods;
+                methods = states[_currentState].methods;
 
-                if (allowedMethods && _.contains(allowedMethods, methodName)) {
-                    whenDeferred(deferred, method.apply(obj, args));
+                if (_.isEmpty(methods) // allow when no explicit allowed methods
+                    || (_.isArray(methods) && _.contains(methods, methodName))) {
+                    var callbacks = _onMethod;
+                    if (transitionName) {
+                        // run transition, before actual method call
+                        callbacks = callbacks.concat(function() {
+                            return subject.transition(transitionName);
+                        });
+                    }
+                    runSeries.apply(null, [callbacks, subject, methodName].concat(args)).done(function() {
+                        whenDeferred(deferred, method.apply(obj, args));
+                    }).fail(function(err) {
+                        deferred.reject(err || methodNotAllowed());
+                    })
                 } else {
-                    deferred.reject(Factory.METHOD_NOT_ALLOWED);
+                    deferred.reject(methodNotAllowed());
                 }
             }.bind(obj));
         });
-        $.extend(obj, methods);
-        return obj;
+        
+        $.extend(subject, factoryMethods);
+        
+        return subject;
+        
+        function initialState() {
+            return _initialState;
+        };
 
         function getState() {
             return _currentState;
@@ -66,21 +106,18 @@ define(['jquery', 'underscore'], function($, _) {
         }
 
         function transition(deferred, newState) {
-            var oldState;
+            var previousState;
 
             if (transitionAllowed(newState)) {
-                oldState = _currentState;
+                previousState = _currentState;
                 _currentState = newState;
                 
-                var info = {
-                    oldState: oldState,
-                    newState: newState
-                };
+                var info = { from: previousState, to: newState };
                 
                 var exitFn = function() {};
-                if (oldState && states[oldState]
-                    && _.isFunction(states[oldState].exit)) {
-                    exitFn = states[oldState].exit;
+                if (previousState && states[previousState]
+                    && _.isFunction(states[previousState].exit)) {
+                    exitFn = states[previousState].exit;
                 }
                 
                 var enterFn = function() {};
@@ -89,31 +126,41 @@ define(['jquery', 'underscore'], function($, _) {
                     enterFn = states[newState].enter;
                 }
                 
-                $.when(exitFn.call(obj, info)).done(function() {
-                    $.when(enterFn.call(obj, info)).done(function() {
-                        deferred.resolve(info);
-                    }).fail(function(err) {
-                        deferred.reject(err || Factory.TRANSITION_NOT_ALLOWED);
+                var callbacks = _onTransition;
+                
+                runSeries.apply(null, [callbacks, this, info]).done(function() {
+                    return $.when(exitFn.call(obj, info)).done(function() {
+                        return $.when(enterFn.call(obj, info)).done(function() {
+                            deferred.resolve(info);
+                        });
                     });
                 }).fail(function(err) {
-                    deferred.reject(err || Factory.TRANSITION_NOT_ALLOWED);
+                    deferred.reject(err || transitionNotAllowed());
                 });
             } else {
-                deferred.reject(Factory.TRANSITION_NOT_ALLOWED);
+                deferred.reject(transitionNotAllowed());
             }
+        }
+        
+        function onTransition(callback) {
+            if (_.isFunction(callback)) _onTransition.push(callback);
         }
 
         function transitionAllowed(newState) {
             var allowed = true,
-                allowedTransitions;
+                transitions;
 
             if (!_currentState) {
                 allowed = _.contains(_stateNames, newState);
             } else {
-                allowedTransitions = states[_currentState].allowedTransitions;
-                allowed = allowedTransitions && _.contains(allowedTransitions, newState);
+                transitions = states[_currentState].transitions;
+                allowed = transitions && _.contains(transitions, newState);
             }
             return allowed;
+        }
+        
+        function onMethod(callback) {
+            if (_.isFunction(callback)) _onMethod.push(callback);
         }
         
         function whenDeferred(deferred, fn1, fn2) {
@@ -135,6 +182,45 @@ define(['jquery', 'underscore'], function($, _) {
                 return $deferred.promise();
             };
         }
+        
+        function getMethods(obj) {
+            var res = [];
+            for (var m in obj) {
+                if (typeof obj[m] == 'function') {
+                    res.push(m)
+                }
+            }
+            return res;
+        }
+        
+        function runSeries(callbacks) {
+            var args = _.rest(arguments);
+            var dfd = $.Deferred();
+            
+            var chain = _.reduce(callbacks, function(previous, cb) {
+                if (!previous) return cb.apply(null, args);
+                return previous.then(function() {
+                    return cb.apply(null, args);
+                });
+            }, null);
+            
+            if (chain) {
+                chain.then(dfd.resolve, dfd.reject);
+            } else {
+                dfd.resolve();
+            }
+            return dfd.promise();
+        }
+        
+        // Errors
+        function transitionNotAllowed() {
+            return new Error('transition not allowed');
+        };
+        
+        function methodNotAllowed() {
+            return new Error('method not allowed');
+        };
+        
 
     };
 });

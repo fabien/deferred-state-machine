@@ -10,6 +10,23 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
     chai.use(sinonChai);
     mocha.setup('bdd');
     mocha.stacktrace = true;
+    mocha.slow(1000);
+    
+    var events = [];
+    
+    function Player() {};
+    
+    Player.prototype.play = function() {
+        console.log('play');
+    };
+    
+    Player.prototype.pause = function() {
+        console.log('pause');
+    };
+    
+    Player.prototype.stop = function() {
+        console.log('stop');
+    };
 
     describe('The Deferred State Machine Factory', function() {
         var FSMFactory,
@@ -23,8 +40,6 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                 'closeDoor',
                 'kickDown'
             ];
-
-        var events = [];
 
         beforeEach(function(done) {
             
@@ -43,44 +58,44 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
 
             states = {
                 open: {
-                        enter: function(transition) {
-                            events.push('enter:open');
-                            return delay(50);
-                        },
-                        exit: function(transition) {
-                            events.push('exit:open');
-                            return delay(50);
-                        },
-                        allowedMethods: [
-                           'walkThrough', 'closeDoor'
-                        ],
-                        allowedTransitions: [
-                            'shut'
-                        ]
+                    enter: function(transition) {
+                        events.push('enter:open');
+                        return delay(50);
                     },
+                    exit: function(transition) {
+                        events.push('exit:open');
+                        return delay(50);
+                    },
+                    methods: [
+                       'walkThrough', 'closeDoor'
+                    ],
+                    transitions: [
+                        'shut'
+                    ]
+                },
                 shut: {
-                        enter: function(transition) {
-                            events.push('enter:shut');
-                            return delay(50);
-                        },
-                        allowedMethods: [
-                            'lock', 'openDoor'
-                        ],
-                        allowedTransitions: [
-                            'open', 'destroyed'
-                        ]
+                    enter: function(transition) {
+                        events.push('enter:shut');
+                        return delay(50);
                     },
+                    methods: [
+                        'lock', 'openDoor'
+                    ],
+                    transitions: [
+                        'open', 'destroyed'
+                    ]
+                },
                 locked: {
-                        allowedMethods: [
-                            'unlock', 'kickDown'
-                        ],
-                        allowedTransitions: [
-                            'shut', 'destroyed'
-                        ]
-                    },
+                    methods: [
+                        'unlock', 'kickDown'
+                    ],
+                    transitions: [
+                        'shut', 'destroyed'
+                    ]
+                },
                 destroyed: {
-                        // End state
-                    }
+                    // End state
+                }
             };
 
             injector.require(['deferredStateMachineFactory'], function (factory) {
@@ -102,6 +117,62 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
 
         it('returns an object that is the original object', function() {
             stateMachine.should.equal(obj);
+        });
+        
+        it('should return a proxy object (optionally)', function(done) {            
+            var player = new Player();
+            
+            var fsm = new FSMFactory(player, {
+                'playing': {
+                    trigger: 'play',
+                    methods: ['pause', 'stop'],
+                    transitions: ['paused', 'stopped']
+                },
+                'paused':{
+                    trigger: 'pause',
+                    methods: ['play', 'stop'],
+                    transitions: ['playing', 'stopped']
+                },
+                'stopped':{
+                    trigger: 'stop',
+                    initial: true,
+                    methods: ['play'],
+                    transitions: ['playing']
+                }
+            }, true); // return proxy
+            
+            fsm.should.not.equal(player);
+            fsm.context.should.equal(player);
+            
+            fsm.play.should.be.a.function;
+            fsm.play.should.not.equal(player.play);
+            
+            fsm.getState().should.equal('stopped');
+            
+            fsm.onMethod(onMethodFn(1));
+            fsm.onMethod(onMethodFn(2));
+            
+            fsm.onTransition(onTransitionFn(1));
+            fsm.onTransition(onTransitionFn(2));
+            
+            var expected = [
+                'm:play:1', 'm:play:2',
+                't:stopped:playing:1', 't:stopped:playing:2',
+                'm:pause:1', 'm:pause:2', 't:playing:paused:1',
+                't:playing:paused:2',
+                'm:stop:1', 'm:stop:2',
+                't:paused:stopped:1', 't:paused:stopped:2'
+            ];
+            
+            fsm.play().then(function() {
+                fsm.getState().should.equal('playing');
+            }).then(fsm.pause).then(function() {
+                fsm.getState().should.equal('paused');
+            }).then(fsm.stop).then(function() {
+                fsm.getState().should.equal('stopped');
+            }).then(function() {
+                events.should.eql(expected);
+            }).then(done);
         });
 
         describe('returns an FSM. The Deferred State Machine', function() {
@@ -221,7 +292,21 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             dfd.resolve(value);
         }, ms || 100);
         return dfd.promise();
-    }
+    };
+    
+    function onMethodFn(id) {
+        return function(fsm, methodName) {
+            events.push('m:' + methodName + ':' + id);
+            return delay(50);
+        };
+    };
+    
+    function onTransitionFn(id) {
+        return function(fsm, info) {
+            events.push('t:' + info.from + ':' + info.to + ':' + id);
+            return delay(50);
+        };
+    };
 
     function isAPromise(promise) {
         var testFor, testAgainst;
@@ -238,5 +323,5 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
         $.each(testAgainst, function(index, method) {
             should.not.exist(method);
         });
-    }
+    };
 });

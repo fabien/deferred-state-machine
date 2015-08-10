@@ -38,17 +38,17 @@ obj = {
     },
     states = {
         open: {
-                allowedMethods: [
+                methods: [
                    'walkThrough'
                 ],
-                allowedTransitions: [
+                transitions: [
                     'shut'
                 ]
             },
         shut: {
-                allowedMethods: [
+                methods: [
                 ],
-                allowedTransitions: [
+                transitions: [
                     'open', 'destroyed'
                 ]
             }
@@ -69,7 +69,7 @@ stateMachine
     });
 ```
 
-States are defined as objects. Each object has an `allowedMethods` and an `allowedTransitions` array. These are enforced
+States are defined as objects. Each object has an `methods` and an `transitions` array. These are enforced
 by the state machine.
 
 To start the machine, transition to a state using `.transition()`. `.transition()` returns a promise that is resolved or
