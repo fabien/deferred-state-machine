@@ -26,6 +26,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             setState: setState,
             getState: getState,
             getStates: getStates,
+            getStateTransitions: getStateTransitions,
             getStateMethods: getStateMethods,
             getStateData: getStateData,
             onMethod: onMethod,
@@ -120,6 +121,16 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             return _stateNames;
         }
         
+        function getStateTransitions(stateName) {
+            stateName = stateName || _currentState;
+            if (stateName && states[stateName]
+                && _.isArray(states[stateName].transitions)) {
+                return states[stateName].transitions;
+            } else {
+                return _.without(_.keys(states), stateName);
+            }
+        }
+        
         function getStateMethods(stateName) {
             stateName = stateName || _currentState;
             if (stateName && states[stateName]
@@ -153,13 +164,17 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             var previousState;
             var self = this;
             
-            var info = { from: _currentState, to: newState };
-            
-            triggerEvents(deferred, 'transition', this, info);
-            
             if (transitionAllowed(newState)) {
+                
                 previousState = _currentState;
                 _currentState = newState;
+                
+                var info = { from: previousState, to: newState };
+                info.transitions = this.getStateTransitions();
+                info.methods = this.getStateMethods();
+                info.data = this.getStateData();
+                
+                triggerEvents(deferred, 'transition', this, info);
                 
                 var onEnter = _onEnter[newState] || [];
                 var onExit = previousState ? _onExit[previousState] : [];
