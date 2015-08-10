@@ -32,6 +32,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             onMethod: onMethod,
             onTransition: onTransition,
             onFailure: onFailure,
+            inTransition: inTransition,
             transition: setState,
             transitionAllowed: transitionAllowed
         };
@@ -42,7 +43,9 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         var _onMethod = [];
         var _onTransition = [];
         var _onFailure = [];
+        var _inTransition = false;
         var _stateNames = _.keys(states || {});
+        var _targetState;
         var _allMethodNames = [];
         var _triggers = {}; // map methodName to stateName
         
@@ -170,10 +173,27 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             var previousState;
             var self = this;
             
-            if (transitionAllowed(newState) 
+            if (_inTransition) {
+                if (force) {
+                    _targetState = newState;
+                    deferred.resolve();
+                } else {
+                    deferred.reject(transitionNotAllowed(newState));
+                }
+            } else if (transitionAllowed(newState) 
                 || (force && newState !== _currentState)) {
+                _inTransition = true;
                 previousState = _currentState;
                 _currentState = newState;
+                
+                deferred.always(function() {
+                    _inTransition = false;
+                    if (_targetState && _targetState !== newState) {
+                        var targetState = _targetState;
+                        _targetState = null;
+                        return self.transition(targetState);
+                    }
+                });
                 
                 var info = { from: previousState, to: newState };
                 info.transitions = this.getStateTransitions();
@@ -198,8 +218,13 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                     });
                 });
             } else {
+                _inTransition = false;
                 deferred.reject(transitionNotAllowed(newState));
             }
+        }
+        
+        function inTransition() {
+            return _inTransition;
         }
         
         function onTransition(callback) {
