@@ -19,14 +19,18 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
     return function(obj, states, proxy) {
         var Factory = this;
         
+        var setState = deferIt(transition);
+        
         var factoryMethods = {
             initialState: initialState,
+            setState: setState,
             getState: getState,
             getStates: getStates,
             getStateMethods: getStateMethods,
+            getStateData: getStateData,
             onMethod: onMethod,
             onTransition: onTransition,
-            transition: deferIt(transition),
+            transition: setState,
             transitionAllowed: transitionAllowed
         };
 
@@ -100,10 +104,6 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         
         $.extend(subject, factoryMethods);
         
-        if (_.isFunction(subject.on) && _.isFunction(subject.listenTo)) {
-            subject.on('transition', subject.transition, subject);
-        }
-        
         return subject;
         
         function initialState() {
@@ -118,12 +118,32 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             return _stateNames;
         }
         
-        function getStateMethods() {
-            if (_currentState && states[_currentState]
-                && _.isArray(states[_currentState].methods)) {
-                return states[_currentState].methods;
+        function getStateMethods(stateName) {
+            stateName = stateName || _currentState;
+            if (stateName && states[stateName]
+                && _.isArray(states[stateName].methods)) {
+                return states[stateName].methods;
             } else {
                 return getMethods(obj);
+            }
+        }
+        
+        function getStateData(stateName) {
+            stateName = stateName || _currentState;
+            if (stateName && states[stateName]) {
+                var data = states[stateName].data;
+                if (_.isFunction(data)) {
+                    return _.extend({}, data.call(obj, this, stateName));
+                } else if (_.isObject(data)) {
+                    return _.extend({}, data);
+                } else if (_.isString(data)
+                    && _.isFunction(obj[data])) {
+                    return obj[data](this, stateName);
+                } else {
+                    return {};
+                }
+            } else {
+                return {};
             }
         }
         
@@ -203,7 +223,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             if (context && _.isFunction(context.trigger)) {
                 var args = _.rest(arguments, 3);
                 deferred.done(function() {
-                    context.trigger.apply(context, [type + ':done'].concat(args));
+                    context.trigger.apply(context, [type].concat(args));
                 });
                 deferred.fail(function() {
                     context.trigger.apply(context, [type + ':fail'].concat(args));

@@ -27,6 +27,11 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
     Player.prototype.stop = function() {
         console.log('stop');
     };
+    
+    Player.prototype.getData = function(fsm, stateName) {
+        if (stateName !== 'stopped') return {};
+        return { title: 'Stopped' };
+    };
 
     describe('The Deferred State Machine Factory', function() {
         var FSMFactory,
@@ -132,25 +137,30 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                 'playing': {
                     trigger: 'play',
                     methods: ['pause', 'stop'],
-                    transitions: ['paused', 'stopped']
+                    transitions: ['paused', 'stopped'],
+                    data: { title: 'Playing' }
                 },
                 'paused':{
                     trigger: 'pause',
                     methods: ['play', 'stop'],
-                    transitions: ['playing', 'stopped']
+                    transitions: ['playing', 'stopped'],
+                    data: function(fsm, stateName) {
+                        return { title: 'Paused' };
+                    }
                 },
                 'stopped':{
-                    trigger: 'stop',
                     initial: true,
+                    trigger: 'stop',
                     methods: ['play'],
-                    transitions: ['playing']
+                    transitions: ['playing'],
+                    data: 'getData'
                 }
             }, true); // return proxy
             
             fsm.on('all', function(eventName, arg) {
-                if (eventName === 'exec:done') {
+                if (eventName === 'exec') {
                     fsmEvents.push('exec:' + arg);
-                } else if (eventName === 'transition:done') {
+                } else if (eventName === 'transition') {
                     fsmEvents.push(arg.from + ':' + arg.to);
                 }
             });
@@ -181,12 +191,15 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             fsm.play().then(function() {
                 fsm.getState().should.equal('playing');
                 fsm.getStateMethods().should.eql(['pause', 'stop']);
+                fsm.getStateData().should.eql({ title: 'Playing' });
             }).then(fsm.pause).then(function() {
                 fsm.getState().should.equal('paused');
                 fsm.getStateMethods().should.eql(['play', 'stop']);
+                fsm.getStateData().should.eql({ title: 'Paused' });
             }).then(fsm.stop).then(function() {
                 fsm.getState().should.equal('stopped');
                 fsm.getStateMethods().should.eql(['play']);
+                fsm.getStateData().should.eql({ title: 'Stopped' });
             }).then(function() {
                 events.should.eql(expected);
             }).then(function() {
