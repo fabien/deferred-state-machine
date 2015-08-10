@@ -217,7 +217,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                     'paused:stopped', 'exec:stop'
                 ]);
             }).then(function() {
-                fsm.onTransition(rejectTransition);
+                fsm.onTransition(rejectTransition('playing'));
                 return fsm.transition('playing');
             }).always(function() {
                 fsm.getState().should.equal('stopped');
@@ -352,8 +352,11 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
         };
     };
     
-    function rejectTransition(fsm, transition) {
-        return $.Deferred().reject().promise();
+    function rejectTransition(stateName) {
+        return function(fsm, transition) {
+            if (stateName !== transition.to) return;
+            return $.Deferred().reject().promise();
+        };
     };
 
     function isAPromise(promise) {

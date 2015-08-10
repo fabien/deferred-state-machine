@@ -162,12 +162,13 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             }
         }
         
-        function transition(deferred, newState) {
+        function transition(deferred, newState, skipFail) {
             var previousState;
             var self = this;
             
             if (transitionAllowed(newState)) {
                 previousState = _currentState;
+                _currentState = newState;
                 
                 var info = { from: previousState, to: newState };
                 info.transitions = this.getStateTransitions();
@@ -179,16 +180,16 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 var onEnter = _onEnter[newState] || [];
                 var onExit = previousState ? _onExit[previousState] : [];
                 
-                runSeries(_onTransition, self, info).done(function() {
+                return runSeries(_onTransition, self, info).done(function() {
                     return runSeries(onExit, info).done(function() {
                         return runSeries(onEnter, info).done(function() {
-                            _currentState = newState;
                             deferred.resolve(info);
                         });
                     });
                 }).fail(function(err) {
-                    _currentState = previousState;
-                    return runSeries(_onFailure, self, info).always(function() {
+                    var callbacks = [resetTransition].concat(_onFailure || []);
+                    if (skipFail) callbacks = []; 
+                    return runSeries(callbacks, self, info).always(function() {
                         deferred.reject(err || transitionNotAllowed(newState));
                     });
                 });
@@ -203,6 +204,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         
         function onFailure(callback) {
             if (_.isFunction(callback)) _onFailure.push(callback);
+        }
+        
+        function resetTransition(fsm, info) {
+            return info.from && fsm.transition(info.from, true);
         }
 
         function transitionAllowed(newState) {
