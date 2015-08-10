@@ -28,6 +28,8 @@ define(['jquery', 'underscore'], function($, _) {
         };
 
         // Private variables
+        var _onEnter = {};
+        var _onExit = {};
         var _onMethod = [];
         var _onTransition = [];
         var _stateNames = _.keys(states || {});
@@ -38,6 +40,8 @@ define(['jquery', 'underscore'], function($, _) {
             if (states[name] && _.isString(states[name].trigger)) {
                 _triggers[states[name].trigger] = name;
             }
+            _onEnter[name] = getCallbacks(obj, name, 'enter');
+            _onExit[name] = getCallbacks(obj, name, 'exit');
         });
         
         var _initialState = _.find(_stateNames, function(name) {
@@ -114,23 +118,12 @@ define(['jquery', 'underscore'], function($, _) {
                 
                 var info = { from: previousState, to: newState };
                 
-                var exitFn = function() {};
-                if (previousState && states[previousState]
-                    && _.isFunction(states[previousState].exit)) {
-                    exitFn = states[previousState].exit;
-                }
+                var onEnter = _onEnter[newState] || [];
+                var onExit = previousState ? _onExit[previousState] : [];
                 
-                var enterFn = function() {};
-                if (newState && states[newState]
-                    && _.isFunction(states[newState].enter)) {
-                    enterFn = states[newState].enter;
-                }
-                
-                var callbacks = _onTransition;
-                
-                runSeries.apply(null, [callbacks, this, info]).done(function() {
-                    return $.when(exitFn.call(obj, info)).done(function() {
-                        return $.when(enterFn.call(obj, info)).done(function() {
+                runSeries(_onTransition, this, info).done(function() {
+                    return runSeries(onExit, info).done(function() {
+                        return runSeries(onEnter, info).done(function() {
                             deferred.resolve(info);
                         });
                     });
@@ -191,6 +184,21 @@ define(['jquery', 'underscore'], function($, _) {
                 }
             }
             return res;
+        }
+        
+        function getCallbacks(obj, state, type) {
+            var callbacks = [];
+            if (state && states[state]) {
+                var specs = [].concat(states[state][type] || []);
+                _.each(specs, function(spec) {
+                    if (_.isString(spec) && _.isFunction(obj[spec])) {
+                        callbacks.push(obj[spec].bind(obj));
+                    } else if (_.isFunction(spec)) {
+                        callbacks.push(spec.bind(obj));
+                    }
+                });
+            }
+            return callbacks;
         }
         
         function runSeries(callbacks) {
