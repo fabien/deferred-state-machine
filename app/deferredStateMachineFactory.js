@@ -101,18 +101,18 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 
                 if (_.isEmpty(methods) // allow when no explicit allowed methods
                     || (_.isArray(methods) && _.contains(methods, methodName))) {
-                    var callbacks = []
-                    
-                    if (_.isFunction(subject.beforeExecute)) {
-                        callbacks.push(function() {
-                            return subject.beforeExecute.apply(subject, _.rest(arguments));
-                        });
-                    }
+                    var callbacks = [];
                     
                     var beforeMethod = 'before' + formatMethodName(methodName);
                     if (_.isFunction(subject[beforeMethod])) {
                         callbacks.push(function() {
                             return subject[beforeMethod].apply(subject, _.rest(arguments));
+                        });
+                    }
+                    
+                    if (_.isFunction(subject.beforeExecute)) {
+                        callbacks.push(function() {
+                            return subject.beforeExecute.apply(subject, _.rest(arguments));
                         });
                     }
                     
