@@ -16,8 +16,11 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
     
     _.extend(StateMachineProxy.prototype, Backbone.Events);
     
-    return function(obj, states, proxy) {
+    return function(obj, states, options) {
         var Factory = this;
+        options = _.extend({}, options);
+        var proxy = options.proxy;
+        var apply = options.apply;
         
         var setState = deferIt(transition);
         
@@ -33,6 +36,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             onTransition: onTransition,
             onFailure: onFailure,
             inTransition: inTransition,
+            applyTransition: applyTransition,
             transition: setState,
             transitionAllowed: transitionAllowed
         };
@@ -206,7 +210,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 var onEnter = _onEnter[newState] || [];
                 var onExit = previousState ? _onExit[previousState] : [];
                 
-                return runSeries(_onTransition, self, info).done(function() {
+                var callbacks = apply ? [applyTransition] : [];
+                callbacks = callbacks.concat(_onTransition || []);
+                
+                return runSeries(callbacks, self, info).done(function() {
                     return runSeries(onExit, info).done(function() {
                         return runSeries(onEnter, info).done(function() {
                             deferred.resolve(info);
@@ -238,6 +245,37 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         
         function resetTransition(fsm, info) {
             return info.from && fsm.transition(info.from, true);
+        }
+        
+        function applyTransition(fsm, transition) {
+            var callbacks = [];
+            var context = transition.context;
+            var splitter = /(^|:)(\w)/gi;
+            var eventName = transition.from + ':to:' + transition.to;
+            var methodName = 'on' + transition.to.replace(splitter, capitalize);
+            var transitionName = 'on' + eventName.replace(splitter, capitalize);
+            
+            if (_.isFunction(context[transitionName])) { // most specific
+                callbacks.push(context[transitionName].bind(context));
+            }
+            
+            if (_.isFunction(context[methodName])) { // more specific
+                callbacks.push(context[methodName].bind(context));
+            }
+            
+            if (_.isFunction(context.onTransition)) { // generic
+                callbacks.push(context.onTransition.bind(context));
+            }
+            
+            return runSeries(callbacks, transition).then(function() {
+                if (!_.isFunction(context.trigger)) return;
+                context.trigger(transition.to, transition); // generic
+                context.trigger(eventName, transition); // specific
+            });
+            
+            function capitalize(match, prefix, eventName) {
+                return eventName.toUpperCase();
+            };
         }
 
         function transitionAllowed(newState) {
