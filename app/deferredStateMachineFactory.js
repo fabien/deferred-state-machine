@@ -40,7 +40,11 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             transition: setState,
             transitionAllowed: transitionAllowed
         };
-
+        
+        if (options.omit) {
+            factoryMethods = _.omit(factoryMethods, options.omit);
+        }
+        
         // Private variables
         var _onEnter = {};
         var _onExit = {};
@@ -62,7 +66,6 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             if (states[name] && _.isArray(states[name].methods)) {
                 _allMethodNames = _allMethodNames.concat(states[name].methods);
             }
-            
         });
         
         var _initialState = _.find(_stateNames, function(name) {
@@ -297,7 +300,8 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             
             if (_.isFunction(context.onTransitionComplete)) {
                 callbacks.push(context.onTransitionComplete.bind(context));
-            } else if (proxy && _.isFunction(context.onTransition)) { // generic
+            } else if ((proxy || !factoryMethods.onTransition) 
+                && _.isFunction(context.onTransition)) { // generic
                 callbacks.push(context.onTransition.bind(context));
             }
             
