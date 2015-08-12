@@ -96,17 +96,41 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
 
                 methods = states[_currentState].methods;
                 
-                triggerEvents(deferred, 'exec', subject, methodName);
-
                 if (_.isEmpty(methods) // allow when no explicit allowed methods
                     || (_.isArray(methods) && _.contains(methods, methodName))) {
-                    var callbacks = _onMethod;
+                    var callbacks = []
+                    
+                    if (_.isFunction(subject.beforeExecute)) {
+                        callbacks.push(function() {
+                            return subject.beforeExecute.apply(subject, _.rest(arguments));
+                        });
+                    }
+                    
+                    var beforeMethod = 'before' + formatMethodName(methodName);
+                    if (_.isFunction(subject[beforeMethod])) {
+                        callbacks.push(function() {
+                            return subject[beforeMethod].apply(subject, _.rest(arguments));
+                        });
+                    }
+                    
+                    callbacks = callbacks.concat(_onMethod);
+                    
+                    if (_.isFunction(subject.onExecute)) {
+                        callbacks.push(function() {
+                            return subject.onExecute.apply(subject, _.rest(arguments));
+                        });
+                    }
+                    
                     if (transitionName) {
                         // run transition, before actual method call
-                        callbacks = callbacks.concat(function() {
+                        callbacks.push(function() {
                             return subject.transition(transitionName);
                         });
                     }
+                    
+                    var params = [deferred, 'exec', subject, methodName].concat(args);
+                    triggerEvents.apply(null, params); // last
+                    
                     runSeries.apply(null, [callbacks, subject, methodName].concat(args)).done(function() {
                         whenDeferred(deferred, method.apply(obj, args));
                     }).fail(function(err) {
@@ -284,8 +308,8 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 if (proxy) context.trigger('transition', transition);
             });
             
-            function capitalize(match, prefix, eventName) {
-                return eventName.toUpperCase();
+            function capitalize(match, prefix, str) {
+                return str.toUpperCase();
             };
         }
 
@@ -384,7 +408,14 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             return dfd.promise();
         }
         
+        function formatMethodName(eventName) {
+            return eventName.replace(/(^|:)(\w)/gi, function(match, prefix, str) {
+                return str.toUpperCase();
+            });
+        }
+        
         // Errors
+        
         function transitionNotAllowed(name) {
             return new Error('Transition "' + name + '" not allowed.');
         };
