@@ -269,8 +269,9 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             
             return runSeries(callbacks, transition).then(function() {
                 if (!_.isFunction(context.trigger)) return;
-                context.trigger(transition.to, transition); // generic
-                context.trigger(eventName, transition); // specific
+                context.trigger(eventName, transition); // most specific
+                context.trigger(transition.to, transition); // more specific
+                context.trigger('transition', transition); // generic
             });
             
             function capitalize(match, prefix, eventName) {
