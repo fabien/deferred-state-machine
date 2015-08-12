@@ -126,11 +126,17 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             return _initialState;
         };
 
-        function getState() {
+        function getState(stateName) {
+            if (stateName === true) {
+                return states[_currentState];
+            } else if (_.isString(stateName)) {
+                return states[stateName];
+            }
             return _currentState;
         }
 
-        function getStates() {
+        function getStates(complete) {
+            if (complete) return states;
             return _stateNames;
         }
         

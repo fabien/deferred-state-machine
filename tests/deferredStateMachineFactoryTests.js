@@ -149,14 +149,14 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             var failed;
             var context;
             
-            var fsm = new FSMFactory(player, {
-                'playing': {
+            var states = {
+                playing: {
                     trigger: 'play',
                     methods: ['pause', 'stop'],
                     transitions: ['paused', 'stopped'],
                     data: { title: 'Playing' }
                 },
-                'paused': {
+                paused: {
                     trigger: 'pause',
                     methods: ['play', 'stop'],
                     transitions: ['playing', 'stopped'],
@@ -164,14 +164,18 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                         return { title: 'Paused' };
                     }
                 },
-                'stopped': {
+                stopped: {
                     initial: true,
                     trigger: 'stop',
                     methods: ['play'],
                     transitions: ['playing'],
                     data: 'getData'
                 }
-            }, { proxy: true, apply: true });
+            };
+            
+            var fsm = new FSMFactory(player, states, { 
+                proxy: true, apply: true
+            });
             
             fsm.on('all', function(eventName, arg) {
                 if (eventName === 'exec') {
@@ -213,8 +217,14 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
                 'onPlaying', 'onTransition', 'onPlayingToPaused', 'onTransition'
             ];
             
+            fsm.getStates().should.eql(['playing', 'paused', 'stopped']);
+            fsm.getStates(true).should.equal(states);
+            
+            fsm.getState('playing').should.eql(states.playing);
+            
             fsm.play().then(function() {
                 fsm.getState().should.equal('playing');
+                fsm.getState(true).should.eql(states.playing);
                 fsm.getStateTransitions().should.eql(['paused', 'stopped']);
                 fsm.getStateMethods().should.eql(['pause', 'stop']);
                 fsm.getStateData().should.eql({ title: 'Playing' });
