@@ -133,6 +133,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             var player = new Player();
             var fsmEvents = [];
             var failed;
+            var context;
             
             var fsm = new FSMFactory(player, {
                 'playing': {
@@ -181,6 +182,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             fsm.onTransition(onTransitionFn(2));
             
             fsm.onFailure(function(fsm, info) {
+                context = info.context;
                 failed = info.from + ':' + info.to;
             });
             
@@ -222,6 +224,7 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             }).always(function() {
                 fsm.getState().should.equal('stopped');
                 failed.should.equal('stopped:playing');
+                context.should.equal(player);
                 done();
             });
         });

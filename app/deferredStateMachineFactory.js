@@ -196,6 +196,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 });
                 
                 var info = { from: previousState, to: newState };
+                info.context = obj;
                 info.transitions = this.getStateTransitions();
                 info.methods = this.getStateMethods();
                 info.data = this.getStateData();
