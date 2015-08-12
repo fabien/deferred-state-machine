@@ -20,7 +20,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         var Factory = this;
         options = _.extend({}, options);
         var proxy = options.proxy;
-        var apply = options.apply;
+        var apply = options.apply && proxy;
         
         var setState = deferIt(transition);
         
