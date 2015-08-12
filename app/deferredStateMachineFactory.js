@@ -20,7 +20,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         var Factory = this;
         options = _.extend({}, options);
         var proxy = options.proxy;
-        var apply = options.apply && proxy;
+        var apply = options.apply;
         
         var setState = deferIt(transition);
         
@@ -76,7 +76,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         
         _.forEach(_.uniq(_allMethodNames), function(methodName) {
             var method = obj[methodName];
-            if (Function !== method.constructor) {
+            if (!method || Function !== method.constructor) {
                 return;
             } else if (proxy && _.isFunction(proxy[methodName])) {
                 return; // prevent
@@ -241,8 +241,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
             return _inTransition;
         }
         
-        function onTransition(callback) {
-            if (_.isFunction(callback)) _onTransition.push(callback);
+        function onTransition(callback, prepend) {
+            if (_.isFunction(callback)) {
+                _onTransition[prepend ? 'unshift' : 'push'](callback);
+            }
         }
         
         function onFailure(callback) {
@@ -269,7 +271,9 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 callbacks.push(context[methodName].bind(context));
             }
             
-            if (_.isFunction(context.onTransition)) { // generic
+            if (_.isFunction(context.onTransitionComplete)) {
+                callbacks.push(context.onTransitionComplete.bind(context));
+            } else if (proxy && _.isFunction(context.onTransition)) { // generic
                 callbacks.push(context.onTransition.bind(context));
             }
             
@@ -277,7 +281,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 if (!_.isFunction(context.trigger)) return;
                 context.trigger(eventName, transition); // most specific
                 context.trigger(transition.to, transition); // more specific
-                context.trigger('transition', transition); // generic
+                if (proxy) context.trigger('transition', transition);
             });
             
             function capitalize(match, prefix, eventName) {
