@@ -26,6 +26,7 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         
         var factoryMethods = {
             initialState: initialState,
+            hasState: hasState,
             setState: setState,
             getState: getState,
             getStates: getStates,
@@ -162,6 +163,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
         function initialState() {
             return _initialState;
         };
+        
+        function hasState(stateName) {
+            return stateName === _currentState;
+        }
 
         function getState(stateName) {
             if (stateName === true) {

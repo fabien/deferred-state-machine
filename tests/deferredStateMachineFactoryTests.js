@@ -223,12 +223,14 @@ define(['chai', 'squire', 'mocha', 'sinon', 'sinonChai'], function (chai, Squire
             fsm.getState('playing').should.eql(states.playing);
             
             fsm.play().then(function() {
+                fsm.hasState('playing').should.be.true;
                 fsm.getState().should.equal('playing');
                 fsm.getState(true).should.eql(states.playing);
                 fsm.getStateTransitions().should.eql(['paused', 'stopped']);
                 fsm.getStateMethods().should.eql(['pause', 'stop']);
                 fsm.getStateData().should.eql({ title: 'Playing' });
             }).then(fsm.pause).then(function() {
+                fsm.hasState('paused').should.be.true;
                 fsm.getState().should.equal('paused');
                 fsm.getStateTransitions().should.eql(['playing', 'stopped']);
                 fsm.getStateMethods().should.eql(['play', 'stop']);
