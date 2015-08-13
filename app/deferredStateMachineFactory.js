@@ -104,16 +104,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                     var failCallbacks = [];
                     var callbacks = [];
                     
-                    if (_.isFunction(subject.onExecuteFail)) {
-                        failCallbacks.push(function() {
-                            return subject.onExecuteFail.apply(subject, _.rest(arguments));
-                        });
-                    }
-                    
                     var beforeMethod = 'onBefore' + formatMethodName(methodName);
                     if (_.isFunction(subject[beforeMethod])) {
                         callbacks.push(function() {
-                            return subject[beforeMethod].apply(subject, _.rest(arguments));
+                            return subject[beforeMethod].apply(subject, _.rest(arguments, 2));
                         });
                     }
                     
@@ -135,6 +129,12 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                         // run transition, before actual method call
                         callbacks.push(function() {
                             return subject.transition(transitionName);
+                        });
+                    }
+                    
+                    if (_.isFunction(subject.onExecuteFail)) {
+                        failCallbacks.push(function() {
+                            return subject.onExecuteFail.apply(subject, _.rest(arguments));
                         });
                     }
                     
