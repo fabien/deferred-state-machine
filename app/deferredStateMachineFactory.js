@@ -101,18 +101,25 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                 
                 if (_.isEmpty(methods) // allow when no explicit allowed methods
                     || (_.isArray(methods) && _.contains(methods, methodName))) {
+                    var failCallbacks = [];
                     var callbacks = [];
                     
-                    var beforeMethod = 'before' + formatMethodName(methodName);
+                    if (_.isFunction(subject.onExecuteFail)) {
+                        failCallbacks.push(function() {
+                            return subject.onExecuteFail.apply(subject, _.rest(arguments));
+                        });
+                    }
+                    
+                    var beforeMethod = 'onBefore' + formatMethodName(methodName);
                     if (_.isFunction(subject[beforeMethod])) {
                         callbacks.push(function() {
                             return subject[beforeMethod].apply(subject, _.rest(arguments));
                         });
                     }
                     
-                    if (_.isFunction(subject.beforeExecute)) {
+                    if (_.isFunction(subject.onBeforeExecute)) {
                         callbacks.push(function() {
-                            return subject.beforeExecute.apply(subject, _.rest(arguments));
+                            return subject.onBeforeExecute.apply(subject, _.rest(arguments));
                         });
                     }
                     
@@ -137,7 +144,10 @@ define(['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
                     runSeries.apply(null, [callbacks, subject, methodName].concat(args)).done(function() {
                         whenDeferred(deferred, method.apply(obj, args));
                     }).fail(function(err) {
-                        deferred.reject(err || methodNotAllowed(methodName));
+                        err = err || methodNotAllowed(methodName);
+                        runSeries.apply(null, [failCallbacks, subject, methodName, err]).always(function() {
+                            deferred.reject(err);
+                        });
                     })
                 } else {
                     deferred.reject(methodNotAllowed(methodName));
